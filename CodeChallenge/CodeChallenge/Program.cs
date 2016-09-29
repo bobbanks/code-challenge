@@ -1,47 +1,91 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Data.Common;
+using System.Linq;
+using System.Runtime.Remoting.Metadata.W3cXsd2001;
+using System.Text;
 
 namespace CodeChallenge {
     internal class Program {
-        private static void Main(string[] args) {
 
-            ProcessViaCharacterEnumeration("(id,created,employee(id,firstname,employeeType(id), lastname),location)");
+        private const string TermBoundary = "(),";
+        private const string TestData = "(id,created,employee(id,firstname,employeeType(id), lastname),location)";
+
+        private static void Main(string[] args) {
+            
+            //ProcessViaCharacterEnumeration(testData);
+            var rootTerm = new Term { Text = "root"};
+            ProcessViaRecursion(TestData, 0, rootTerm);
+
+            Console.WriteLine("Order as specified:");
+            OutputTerms(rootTerm.Children);
+            Console.WriteLine("");
+
+            Console.WriteLine("Order ascending:");
+            OutputOrderedTerms(rootTerm.Children);
             Console.ReadKey();
         }
 
-        private static void ProcessViaCharacterEnumeration(string data) {
-            var dataArray = data.ToCharArray();
-            var indentLevel = 0;
+        private class Term {
+            public string Text { get; set; }
+            public List<Term> Children { get; private set; }
 
-            foreach (var character in dataArray) {
-                switch (character) {
-                    case '(':
-                        indentLevel++;
-                        if (indentLevel > 1) {
-                            Console.WriteLine();
-                        }
-                        Console.Write(new string('-',indentLevel - 1));
-                        if (indentLevel > 1) {
-                            Console.Write(' ');
-                        }
-                        break;
-                    case ')':
-                        indentLevel--;
-                        break;
-                    case ',':
-                        Console.WriteLine();
-                        Console.Write(new string('-',indentLevel - 1));
-                        if (indentLevel > 1) {
-                            Console.Write(' ');
-                        }
-                        break;
-                    case ' ':
-                        break;
-                    default:
-                        Console.Write(character);
-                        break;
-                }
+            public Term() {
+                Children = new List<Term>();
             }
-            Console.WriteLine();
+        }
+
+        private static int ProcessViaRecursion(string data, int position, Term term) {
+            StringBuilder sb = new StringBuilder();
+            Term currentTerm = term;
+            
+            while (position <= data.Length - 1) {
+                var termChar = data.Substring(position, 1);
+
+                if (TermBoundary.Contains(termChar)) { // if character is a term boundary
+                    
+                    if (sb.Length > 0) { // If we have a word in the buffer, add it as a term
+                        currentTerm = new Term {Text = sb.ToString().Trim()};
+                        term.Children.Add(currentTerm);
+                        sb.Clear();
+                    }
+                    
+                    switch (termChar) {
+                        case "(": // process nested terms
+                            position = ProcessViaRecursion(data, position + 1, currentTerm);
+                            break;
+                        case ")": // end recursion
+                            return position;
+                    }
+                } else {
+                   // Add letter to word buffer
+                   sb.Append(termChar); 
+                }
+                position++;
+            }
+            return position;
+        }
+
+        private static void OutputTerms(List<Term> terms, int level = 0) {
+            if (terms == null || !terms.Any()) {
+                return;
+            }
+
+            foreach (var term in terms) {
+                Console.WriteLine($"{new string('-',level)}{(level > 0 ? " " : "")}{term.Text}");
+                OutputTerms(term.Children, level + 1);
+            }
+        }
+
+        private static void OutputOrderedTerms(List<Term> terms, int level = 0) {
+            if (terms == null || !terms.Any()) {
+                return;
+            }
+
+            foreach (var term in terms.OrderBy(x => x.Text)) {
+                Console.WriteLine($"{new string('-',level)}{(level > 0 ? " " : "")}{term.Text}");
+                OutputOrderedTerms(term.Children, level + 1);
+            }
         }
     }
 }
